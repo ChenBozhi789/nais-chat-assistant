@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nelson AI Sandbox (test host page)</title>
+  <style>
+    /* Rough NAIS-styled mock host page. Plain CSS, no libraries. */
+    body { margin: 0; font-family: Georgia, serif; color: #1f2933; line-height: 1.6; }
+    header { background: #0b3d5c; color: #fff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    nav a { color: #cfe8f7; margin-left: 20px; text-decoration: none; }
+    .hero { background: linear-gradient(135deg, #0b3d5c, #1f8a70); color: #fff; padding: 96px 32px; text-align: center; }
+    .hero h2 { font-size: 2.5rem; margin: 0 0 12px; }
+    main { max-width: 800px; margin: 0 auto; padding: 32px; }
+    main h3 { color: #0b3d5c; }
+    footer { background: #102a3a; color: #9fb3c0; padding: 32px; text-align: center; }
+
+    /* Deliberately hostile host-theme CSS: the widget (inside Shadow DOM)
+       must look unaffected by any of this. */
+    * { box-sizing: content-box !important; }
+    button, input, textarea { all: unset; }
+    div, p, a, span { font-family: "Comic Sans MS", cursive !important; color: hotpink; }
+    a { text-decoration: underline wavy; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Nelson AI Sandbox</h1>
+    <nav><a href="#">Home</a><a href="#">About</a><a href="#">Programmes</a><a href="#">Contact</a></nav>
+  </header>
+
+  <section class="hero">
+    <h2>Explore AI in Nelson</h2>
+    <p>A place to learn, experiment and build with artificial intelligence.</p>
+  </section>
+
+  <main>
+    <h3>About the Sandbox</h3>
+    <p>Placeholder text to mimic a real WordPress page. Replace with real NAIS content later.</p>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+    <h3>Programmes</h3>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco.</p>
+    <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+    <h3>Get involved</h3>
+    <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.</p>
+    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.</p>
+  </main>
+
+  <footer>&copy; Nelson AI Sandbox (test page)</footer>
+
+  <!-- The exact tag NAIS will paste into WordPress. -->
+  <script src="http://localhost:8000/widget.js" defer></script>
+
+  <!-- Override the API base URL via data attribute (widget feature, step 4):
+  <script src="http://localhost:8000/widget.js" data-api-url="http://localhost:8000" defer></script>
+  -->
+</body>
+</html>

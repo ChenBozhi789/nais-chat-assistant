@@ -1,0 +1,105 @@
+# nais-chat-assistant
+# Combined ignore rules for a Python FastAPI backend, a Vite React widget,
+# and local ChromaDB / document data.
+
+# --- Secrets and local env ---
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+*-credentials.json
+service-account*.json
+
+# --- Python (backend/) ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.installed.cfg
+develop-eggs/
+*.manifest
+*.spec
+
+# Test, type-check, and lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# --- Node / TypeScript / Vite (widget/) ---
+node_modules/
+.vite/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+.eslintcache
+.turbo/
+.parcel-cache/
+
+# npm / yarn / pnpm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Build and packaging output ---
+build/
+*.egg-info/
+wheels/
+share/python-wheels/
+sdist/
+
+# --- RAG data (generated, not source documents) ---
+# Persist the vector store locally; do not commit it.
+chroma/
+chroma_db/
+.chroma/
+**/chroma.sqlite3
+data/chroma/
+data/processed/
+data/index/
+
+# --- Logs and runtime ---
+*.log
+logs/
+*.pid
+
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Editors ---
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
