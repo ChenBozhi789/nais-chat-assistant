@@ -6,7 +6,7 @@ Build an MVP AI chat assistant for Nelson AI Sandbox (NAIS). It is ONLY a floati
 ## Tech stack
 - Widget: React + TypeScript, built with Vite in library mode as a single self-contained IIFE bundle (widget.js). Mounted inside a Shadow DOM so WordPress theme CSS cannot clash with it.
 - Backend: Python 3.11+, FastAPI, uvicorn.
-- RAG: ChromaDB (persistent local store) + Gemini API for embeddings and generation. Model names must be configurable via environment variables, not hardcoded.
+- RAG: Azure AI Search (hybrid keyword + vector retrieval) + Microsoft Foundry model deployments for embeddings and generation. Use the `openai` SDK with the Foundry OpenAI-compatible inference base URL. This supersedes the earlier ChromaDB and separate Azure OpenAI resource assumptions. Deployment names and the search index must be configurable via environment variables, not hardcoded.
 - Config: python-dotenv. API keys live ONLY on the backend.
 
 ## Repo structure (monorepo: nais-chat-assistant)
@@ -14,7 +14,7 @@ nais-chat-assistant/
 ├── backend/
 │   ├── main.py          # FastAPI app, /chat and /health endpoints, CORS, rate limiting
 │   ├── rag.py           # chunking, embedding, retrieval, prompt building
-│   ├── ingest.py        # CLI script: reads data/, builds the Chroma index
+│   ├── ingest.py        # CLI script: reads reviewed chunks, builds the Azure AI Search index
 │   ├── config.py        # env-based settings
 │   └── requirements.txt
 ├── widget/
@@ -26,7 +26,7 @@ nais-chat-assistant/
 │   ├── test.html            # bare page for local testing
 │   ├── vite.config.ts
 │   └── package.json
-├── data/                # NAIS source docs (.md, .txt, .pdf); no secrets
+├── content/             # Raw/clean source docs and reviewed JSONL chunks; no secrets
 ├── .env.example
 ├── .gitignore
 └── README.md
@@ -38,15 +38,15 @@ nais-chat-assistant/
    - Validate input with Pydantic: max message length 1000 chars, history capped at the last 6 turns.
 2. GET /health returns { "status": "ok" }.
 3. RAG pipeline:
-   - ingest.py loads files from data/, splits into chunks (~500 tokens, ~50 overlap), embeds them, stores them in Chroma with source metadata (filename/title/url).
-   - At query time: embed the question, retrieve top 4 chunks, build a prompt, call Gemini.
+   - The chunking scripts produce reviewed JSONL in content/chunks/. The ingest script reads approved chunks, embeds them, and uploads them to Azure AI Search with source metadata (filename/title/url).
+   - At query time: embed the question with the same Foundry embedding deployment, retrieve top 4 chunks, build a prompt, and call the Foundry chat deployment.
    - System prompt: answer ONLY from the provided context; be concise and friendly; if the context does not contain the answer, say you don't know and suggest contacting NAIS (contact details configurable via env, NAIS_CONTACT_INFO); never fabricate details about NAIS.
    - If the best retrieval score is below a configurable threshold, skip the LLM and return the fallback message.
 4. Security and cost control:
    - CORS restricted to origins in ALLOWED_ORIGINS (env, comma-separated); localhost allowed in dev.
    - Per-IP rate limiting (e.g. slowapi), configurable.
    - Never log API keys or full user messages beyond what is needed for debugging.
-   - Handle Gemini errors and timeouts gracefully and return a friendly error message.
+   - Handle Foundry model errors and timeouts gracefully and return a friendly error message.
 5. Serve the built widget.js as a static file from the backend (/widget.js) so NAIS only needs: <script src="https://<api-host>/widget.js" defer></script>
 
 ## Widget requirements
@@ -67,11 +67,11 @@ nais-chat-assistant/
 - Do not add dependencies without a clear reason, and keep requirements.txt and package.json minimal.
 
 ## .gitignore must include
-.env, node_modules/, widget/dist/, backend/chroma_db/, __pycache__/, .venv/
+.env, node_modules/, widget/dist/, content/chunks/, __pycache__/, .venv/
 
 ## Build order (do one step at a time and stop for my review after each)
 1. Scaffold the folder structure, config files, .env.example, .gitignore and a README skeleton.
-2. Backend: config.py, ingest.py and rag.py. Include 2-3 sample docs in data/ for testing. Verify retrieval works from the CLI.
+2. Backend: config.py, ingest.py and rag.py. Upload reviewed chunks to Azure AI Search and verify retrieval from the CLI.
 3. Backend: FastAPI /chat and /health with CORS and rate limiting. Test with curl.
 4. Widget: Vite + React + TS project, Shadow DOM mounting, ChatWidget UI, wired to /chat. Test via widget/test.html.
 5. Production build as a single IIFE widget.js, served by the backend.
@@ -81,7 +81,7 @@ nais-chat-assistant/
 Authentication, user accounts, a database for chat history, an admin dashboard, multi-language support, streaming responses (nice-to-have later).
 
 ## Acceptance criteria
-- Pasting the script tag into widget/test.html shows the chat bubble bottom-right, and a question about content in data/ returns a correct, grounded answer with a source.
+- Pasting the script tag into widget/test.html shows the chat bubble bottom-right, and a question about approved content in the Azure AI Search index returns a correct, grounded answer with a source.
 - A question outside the data returns the "I don't know / contact NAIS" fallback, not a guess.
 - The API key is never exposed in the browser bundle or network calls.
 - Requests from disallowed origins are rejected by CORS.
