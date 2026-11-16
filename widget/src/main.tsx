@@ -1,7 +1,13 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ChatWidget } from "./ChatWidget";
+import { resolveConfig } from "./config";
 import styles from "./styles.css?inline";
+
+// Must be read synchronously while the script runs; it is null afterwards.
+const scriptTag =
+  (document.currentScript as HTMLScriptElement | null) ??
+  document.querySelector<HTMLScriptElement>('script[src*="widget.js"]');
 
 /** Create a host div, attach a Shadow DOM, inject scoped CSS and mount React. */
 function mount(): void {
@@ -17,7 +23,7 @@ function mount(): void {
 
   createRoot(container).render(
     <StrictMode>
-      <ChatWidget />
+      <ChatWidget config={resolveConfig(scriptTag)} />
     </StrictMode>,
   );
 }

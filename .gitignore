@@ -69,15 +69,24 @@ sdist/
 
 # --- RAG data (generated, not source documents) ---
 # Persist the vector store locally; do not commit it.
-chroma/
+/chroma/
 chroma_db/
 .chroma/
 **/chroma.sqlite3
 data/chroma/
+evaluation/chroma/db/
 data/processed/
 content/chunks/
+content/exports/
 content/chunk-updated.txt
 data/index/
+evaluation/retrieval-results.json
+evaluation/results/
+
+# --- Local-only docs, drafts, and source website content ---
+docs/
+Claude outputs/
+content/nais-website/
 
 # --- Logs and runtime ---
 *.log

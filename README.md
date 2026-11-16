@@ -32,13 +32,13 @@ Open `widget/test.html` once the backend serves `/widget.js` (step 5).
 From the repo root, after installing the backend requirements:
 
 ```bash
-.venv/bin/python -m backend.chunk_basic_pages
-.venv/bin/python -m backend.chunk_curated_tutorials
+.venv/bin/python -m rag.chunk_basic_pages
+.venv/bin/python -m rag.chunk_curated_tutorials
 ```
 
 The first command selects cleaned Markdown whose original is an HTML page in
-`content/raw/`; the second selects Markdown whose original is a PDF in
-`content/raw/curated-tutorials/`.
+`content/nais-website/raw/basic-pages/`; the second selects Markdown whose
+original is a PDF in `content/nais-website/raw/curated-tutorials/`.
 This keeps the `curated-streams` HTML index page with basic pages and the PDF
 contents with tutorials. Each command writes `chunks.jsonl` and
 `chunk-review.html` to its own directory under `content/chunks/`:
@@ -56,7 +56,7 @@ valid. Rerunning the corresponding chunk command overwrites manual edits.
 To try one document first:
 
 ```bash
-.venv/bin/python -m backend.chunk_basic_pages --source content/clean/book-a-session.md
+.venv/bin/python -m rag.chunk_basic_pages --source content/nais-website/clean/basic-pages/book-a-session.md
 ```
 
 The default limit and overlap come from `CHUNK_TOKENS` and
@@ -68,17 +68,20 @@ headings are reported and omitted from the chunk content. Review flagged
 chunks before indexing.
 
 ## Layout
-- `backend/` config and chunking; `rag/ingest.py` validates and uploads reviewed chunks
+- `backend/` config and the query-time answer path (`answer.py`)
+- `rag/` chunk previews, index upload, export, and retrieval checks
 - `widget/` Vite + React + TS widget, built as one IIFE `widget.js`
-- `content/` source documents and reviewed chunk JSONL (`.md`, `.html`, `.pdf`, `.jsonl`)
+- `content/` NAIS website sources, reviewed chunks, and local embeddings
+- `evaluation/` retrieval questions, results, and the local Chroma practice database
+- `reference/rag/` notes on RAG technique; the app does not load this folder
 - `.env.example` documented environment variables
 
 ## Upload reviewed chunks to Azure AI Search
 
-See [the step-by-step upload guide](docs/azure-ai-search-upload.md). The upload
+See [the step-by-step guide](content/docs/azure-ai-search-upload.md). The ingest
 script reads `content/chunks/basic-pages/chunks.jsonl` by default; it does not
-re-chunk source pages. Local validation runs without a cloud write, and an
-explicit `--upload` flag is required to create an index and send documents.
+re-chunk source pages. Local validation makes no model call, and an explicit
+`--embed` flag is required to call Foundry and write local embedding files.
 
 ## Environment variables
 See [.env.example](.env.example). Azure variables use **deployment names** (not model names), so models stay configurable. API keys live only on the backend.

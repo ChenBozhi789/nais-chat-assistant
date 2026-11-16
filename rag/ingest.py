@@ -1,13 +1,17 @@
-"""Validate reviewed JSONL and optionally upload it to Azure AI Search.
+"""Validate reviewed JSONL and embed it locally with a Foundry deployment.
 
 Run from the repo root: ``python -m rag.ingest`` (local check) or
-``python -m rag.ingest --upload`` (Azure embedding, index creation, upload).
+``python -m rag.ingest --embed`` (Foundry embedding, written to local files).
+Nothing is sent to Azure AI Search; the output can be loaded into Chroma.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -15,6 +19,7 @@ from urllib.parse import urlparse
 from backend.config import ROOT_DIR, settings
 
 DEFAULT_INPUT = ROOT_DIR / "content/chunks/basic-pages/chunks.jsonl"
+DEFAULT_OUTPUT = ROOT_DIR / "content/embedding/nais-content-curated-tutorials"
 REQUIRED_FIELDS = ("id", "title", "url", "source_file", "section", "content")
 
 
@@ -72,87 +77,15 @@ def load_chunks(path: Path) -> list[dict[str, Any]]:
     return chunks
 
 
-def create_or_check_index(index_client: Any, dimensions: int) -> None:
-    """Create a new index, or check an existing index before writing to it."""
-    from azure.core.exceptions import ResourceNotFoundError
-    from azure.search.documents.indexes.models import (
-        HnswAlgorithmConfiguration,
-        SearchableField,
-        SearchField,
-        SearchFieldDataType,
-        SearchIndex,
-        SimpleField,
-        VectorSearch,
-        VectorSearchProfile,
-    )
-
-    try:
-        existing = index_client.get_index(settings.azure_search_index)
-    except ResourceNotFoundError:
-        existing = None
-
-    if existing is not None:
-        fields = {field.name: field for field in existing.fields}
-        missing = {*REQUIRED_FIELDS, "embedding"} - fields.keys()
-        if missing:
-            raise ValueError(f"Existing index is missing fields: {sorted(missing)}")
-        if fields["embedding"].vector_search_dimensions != dimensions:
-            raise ValueError(
-                "Existing index embedding dimensions differ from the model output. "
-                "Use a new index name or the original embedding deployment."
-            )
-        print(f"Using existing index: {settings.azure_search_index}")
-        return
-
-    fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True),
-        SearchableField(name="title", type=SearchFieldDataType.String),
-        SimpleField(name="url", type=SearchFieldDataType.String),
-        SimpleField(name="source_file", type=SearchFieldDataType.String),
-        SearchableField(name="section", type=SearchFieldDataType.String),
-        SearchableField(name="content", type=SearchFieldDataType.String),
-        SearchField(
-            name="embedding",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-            searchable=True,
-            vector_search_dimensions=dimensions,
-            vector_search_profile_name="nais-vector-profile",
-        ),
-    ]
-    vector_search = VectorSearch(
-        algorithms=[HnswAlgorithmConfiguration(name="nais-hnsw")],
-        profiles=[
-            VectorSearchProfile(
-                name="nais-vector-profile", algorithm_configuration_name="nais-hnsw"
-            )
-        ],
-    )
-    index_client.create_index(
-        SearchIndex(
-            name=settings.azure_search_index,
-            fields=fields,
-            vector_search=vector_search,
-        )
-    )
-    print(f"Created index: {settings.azure_search_index} ({dimensions} dimensions)")
-
-
-def upload_chunks(chunks: list[dict[str, Any]], batch_size: int) -> None:
-    from azure.core.credentials import AzureKeyCredential
-    from azure.search.documents import SearchClient
-    from azure.search.documents.indexes import SearchIndexClient
-
-    missing = settings.missing_ingest_settings()
-    if missing:
-        raise ValueError(f"Missing .env settings: {', '.join(missing)}")
-
-    openai_client = new_foundry_client()
+def embed_chunks(chunks: list[dict[str, Any]], batch_size: int) -> list[dict[str, Any]]:
+    """Embed every chunk's content; return documents with an ``embedding`` field."""
+    client = new_foundry_client()
     documents: list[dict[str, Any]] = []
     dimensions: int | None = None
     try:
         for start in range(0, len(chunks), batch_size):
             batch = chunks[start : start + batch_size]
-            response = openai_client.embeddings.create(
+            response = client.embeddings.create(
                 model=settings.foundry_embedding_deployment,
                 input=[chunk["content"] for chunk in batch],
             )
@@ -165,7 +98,7 @@ def upload_chunks(chunks: list[dict[str, Any]], batch_size: int) -> None:
                 if dimensions is None:
                     dimensions = len(vector)
                 elif len(vector) != dimensions:
-                    raise ValueError("Embedding dimensions changed within this upload")
+                    raise ValueError("Embedding dimensions changed within this run")
                 documents.append(
                     {
                         **{field: chunk[field] for field in REQUIRED_FIELDS},
@@ -174,33 +107,33 @@ def upload_chunks(chunks: list[dict[str, Any]], batch_size: int) -> None:
                 )
             print(f"Embedded {len(documents)}/{len(chunks)} chunks")
     finally:
-        openai_client.close()
+        client.close()
+    return documents
 
-    if dimensions is None:
-        raise ValueError("No embeddings created")
-    credential = AzureKeyCredential(settings.azure_search_admin_key)
-    with SearchIndexClient(settings.azure_search_endpoint, credential) as index_client:
-        create_or_check_index(index_client, dimensions)
-    with SearchClient(
-        settings.azure_search_endpoint, settings.azure_search_index, credential
-    ) as search_client:
-        for start in range(0, len(documents), batch_size):
-            results = search_client.upload_documents(
-                documents=documents[start : start + batch_size]
-            )
-            failures = [result for result in results if not result.succeeded]
-            if failures:
-                details = ", ".join(
-                    f"{result.key}: {result.error_message}" for result in failures
-                )
-                raise ValueError(f"Upload failed for {len(failures)} chunks: {details}")
-            print(
-                f"Uploaded {min(start + batch_size, len(documents))}/{len(documents)} chunks"
-            )
+
+def write_embeddings(documents: list[dict[str, Any]], output_dir: Path) -> None:
+    """Write documents.jsonl and manifest.json (same layout as the Search export)."""
+    os.umask(0o077)  # The output contains source text and full vectors.
+    output_dir.mkdir(parents=True, exist_ok=True)
+    raw = "".join(
+        json.dumps(doc, ensure_ascii=False) + "\n" for doc in documents
+    ).encode("utf-8")
+    (output_dir / "documents.jsonl").write_bytes(raw)
+    manifest = {
+        "created_at": datetime.now(UTC).isoformat(),
+        "documents": len(documents),
+        "embedding_dimensions": len(documents[0]["embedding"]),
+        "embedding_deployment": settings.foundry_embedding_deployment,
+        "documents_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"Wrote {len(documents)} embedded chunks to {output_dir}")
 
 
 def probe_embedding(content: str) -> None:
-    """Test one Foundry embedding call without creating a Search index."""
+    """Test one Foundry embedding call without writing any files."""
     client = new_foundry_client()
     try:
         response = client.embeddings.create(
@@ -217,17 +150,25 @@ def probe_embedding(content: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help="Directory for documents.jsonl and manifest.json",
+    )
     action = parser.add_mutually_exclusive_group()
     action.add_argument(
-        "--upload", action="store_true", help="Embed and write to Azure"
+        "--embed",
+        action="store_true",
+        help="Embed all chunks with Foundry and write local files",
     )
     action.add_argument(
         "--probe-embedding",
         action="store_true",
-        help="Embed one chunk to verify the Foundry model; do not write to Search",
+        help="Embed one chunk to verify the Foundry model; write nothing",
     )
     parser.add_argument(
-        "--allow-flagged", action="store_true", help="Upload chunks with review_flags"
+        "--allow-flagged", action="store_true", help="Embed chunks with review_flags"
     )
     parser.add_argument("--batch-size", type=int, default=16)
     args = parser.parse_args()
@@ -244,12 +185,12 @@ def main() -> None:
         if args.probe_embedding:
             probe_embedding(chunks[0]["content"])
             return
-        if not args.upload:
-            print("Local validation only. Add --probe-embedding or --upload.")
+        if not args.embed:
+            print("Local validation only. Add --probe-embedding or --embed.")
             return
         if flagged and not args.allow_flagged:
             raise ValueError("Review flagged chunks or use --allow-flagged explicitly")
-        upload_chunks(chunks, args.batch_size)
+        write_embeddings(embed_chunks(chunks, args.batch_size), args.output_dir)
     except (TypeError, ValueError) as exc:
         parser.error(str(exc))
 

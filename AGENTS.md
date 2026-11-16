@@ -13,10 +13,16 @@ Build an MVP AI chat assistant for Nelson AI Sandbox (NAIS). It is ONLY a floati
 nais-chat-assistant/
 ├── backend/
 │   ├── main.py          # FastAPI app, /chat and /health endpoints, CORS, rate limiting
-│   ├── rag.py           # chunking, embedding, retrieval, prompt building
-│   ├── ingest.py        # CLI script: reads reviewed chunks, builds the Azure AI Search index
+│   ├── answer.py        # query-time: embed the question, retrieve chunks, write the answer
 │   ├── config.py        # env-based settings
 │   └── requirements.txt
+├── rag/
+│   ├── chunk_documents.py          # shared chunk preview helpers
+│   ├── chunk_basic_pages.py        # preview chunks for basic pages
+│   ├── chunk_curated_tutorials.py  # preview chunks for curated tutorials
+│   ├── ingest.py                   # validate reviewed JSONL and upload to Azure AI Search
+│   ├── export_index.py             # back up the Azure AI Search index
+│   └── evaluate_retrieval.py       # batch-check retrieval against evaluation/questions.json
 ├── widget/
 │   ├── src/
 │   │   ├── main.tsx         # creates host div, attaches Shadow DOM, mounts React
@@ -26,7 +32,9 @@ nais-chat-assistant/
 │   ├── test.html            # bare page for local testing
 │   ├── vite.config.ts
 │   └── package.json
-├── content/             # Raw/clean source docs and reviewed JSONL chunks; no secrets
+├── content/             # NAIS website sources, reviewed chunks, embeddings; no secrets
+├── evaluation/          # Retrieval questions, results, and the local Chroma practice database
+├── reference/rag/       # RAG technique notes; not loaded by the app
 ├── .env.example
 ├── .gitignore
 └── README.md
@@ -71,7 +79,7 @@ nais-chat-assistant/
 
 ## Build order (do one step at a time and stop for my review after each)
 1. Scaffold the folder structure, config files, .env.example, .gitignore and a README skeleton.
-2. Backend: config.py, ingest.py and rag.py. Upload reviewed chunks to Azure AI Search and verify retrieval from the CLI.
+2. Backend config, `rag/ingest.py`, and `backend/answer.py`. Upload reviewed chunks to Azure AI Search and verify retrieval from the CLI.
 3. Backend: FastAPI /chat and /health with CORS and rate limiting. Test with curl.
 4. Widget: Vite + React + TS project, Shadow DOM mounting, ChatWidget UI, wired to /chat. Test via widget/test.html.
 5. Production build as a single IIFE widget.js, served by the backend.

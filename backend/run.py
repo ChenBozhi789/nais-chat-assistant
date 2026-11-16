@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Run tests/questions.json against the chat API and flag failures.
+"""Run questions.json beside this file against the chat API and flag failures.
 
 Config (env):  CHAT_URL  default http://localhost:8000/chat
 Request body:  {"message": "<question>"}
 Response:      {"answer": "...", "sources": ["url", ...] | [{"url": "..."}]}
 Adjust ask() if your API differs.
 
-Usage: python tests/run.py [--only ID ...] [--type fact|unknown|refuse] [-v]
+Usage: python backend/run.py [--only ID ...] [--type fact|unknown|refuse] [-v]
 """
 import argparse, json, os, sys, urllib.request
 from pathlib import Path

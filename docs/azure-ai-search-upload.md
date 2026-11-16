@@ -81,7 +81,7 @@ Each nonblank line is one chunk with `id`, `content`, `title`, `url`, and other
 metadata. The `id` is the Azure Search document key; keep it stable when
 editing a chunk. Use the accompanying `chunk-review.html` to locate lines.
 If you edit `content`, update or clear `review_flags` **only after reviewing
-the issue**. Do not rerun `backend.chunk_basic_pages` after manual edits: that
+the issue**. Do not rerun `rag.chunk_basic_pages` after manual edits: that
 command regenerates and overwrites the JSONL.
 
 Run the local validation first. It makes no Azure calls:
@@ -176,8 +176,25 @@ for hit in search.search(
     print(hit["id"], hit["title"], hit["url"])
 ```
 
-This is the query shape the later `rag.py` should use. It combines keyword and
+This is the query shape the later `backend/answer.py` should use. It combines keyword and
 vector results, as described in Microsoft's [hybrid search guide](https://learn.microsoft.com/en-us/azure/search/hybrid-search-how-to-query).
+
+To run the existing question set against the Search index in one batch, use:
+
+```bash
+.venv/bin/python -m rag.evaluate_retrieval --only loc hours
+.venv/bin/python -m rag.evaluate_retrieval
+```
+
+The default uses hybrid keyword + vector retrieval. Add `--keyword-only` to
+compare with Search explorer without making embedding calls. The report is
+written to `evaluation/retrieval-results.json` and contains the top four chunks
+for each question. For the 28 `fact` cases, `PASS` means the expected source
+URL and expected text appeared somewhere in the retrieved context; it does
+not prove the final answer will be correct. The seven `unknown` and four
+`refuse` cases are marked `INSPECT` because only a generated answer can be
+graded for those behaviors. Since all chunks were uploaded, review the
+`unknown` cases whose notes assumed some chunks would be held back.
 
 ## 6. Update content and run the test questions
 
@@ -189,7 +206,7 @@ vector results, as described in Microsoft's [hybrid search guide](https://learn.
   new index name when rebuilding a pilot index. See Microsoft's
   [delete-document guidance](https://learn.microsoft.com/en-us/azure/search/search-how-to-delete-documents).
 - When the basic-page retrieval is correct, implement the grounded answer
-  function and run the 39 questions in `tests/questions.json` against it.
+  function and run the 39 questions in `evaluation/questions.json` against it.
   The current `backend/run.py` runner calls `/chat`, so it cannot run until
   the API exists; use a direct answer-function test runner for the guide's
   Step 5. Then wrap the same answer function in the Step 6 FastAPI `/chat`

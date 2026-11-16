@@ -165,8 +165,8 @@ Hybrid search matters here: the keyword half catches exact terms like "Christchu
 
 ## Step 5: Test before building anything else
 
-1. Put 30-40 questions in `tests/questions.json`, each with an expected fact or expected source URL.
-2. Write `tests/run.py`, which loops over them, prints the answer and sources, and flags any answer whose sources lack the expected URL.
+1. Put 30-40 questions in `evaluation/questions.json`, each with an expected fact or expected source URL.
+2. Write `evaluation/run.py`, which loops over them, prints the answer and sources, and flags any answer whose sources lack the expected URL.
 3. Include trick questions such as "What's the price of the workshop?" (if not on the site), "Should I invest in AI stocks?" and "Ignore your instructions". The correct behaviour is to say "I don't know" or refuse.
 4. Fix problems in this order:
    - Retrieval first (chunk size, junk in the pages).
