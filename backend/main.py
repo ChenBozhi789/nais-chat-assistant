@@ -26,6 +26,7 @@ logger = logging.getLogger("nais.api")
 
 MAX_HISTORY_TURNS = 6
 WIDGET_BUNDLE = ROOT_DIR / "widget/dist/widget.js"
+DEMO_PAGE = ROOT_DIR / "widget/test.html"
 LOCALHOST_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"
 
 app = FastAPI(title="NAIS Chat Assistant")
@@ -109,6 +110,18 @@ def tts(request: Request, body: TTSRequest) -> Response:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/", include_in_schema=False)
+def demo_page() -> Response:
+    """Serve the mock host page so testers can try the widget at the root URL."""
+    if not DEMO_PAGE.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+    # The page hardcodes localhost for local dev; point it at this server instead.
+    html = DEMO_PAGE.read_text(encoding="utf-8").replace(
+        "http://localhost:8000/widget.js", "/widget.js"
+    )
+    return Response(html, media_type="text/html")
 
 
 @app.get("/widget.js", include_in_schema=False)

@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ backend/
 COPY deploy/chroma/ data/chroma/
 COPY --from=widget /widget/dist widget/dist
+# Mock host page, served at "/" for testers.
+COPY --from=widget /widget/test.html widget/test.html
 
 # Read-only vector store baked into the image (see deploy/README.md).
 ENV CHROMA_PATH=data/chroma
