@@ -4,7 +4,8 @@
 FROM node:20-slim AS widget
 WORKDIR /widget
 COPY widget/package.json widget/package-lock.json ./
-RUN npm ci
+# plugin-react 4 declares vite<=7 peers but works with the locked vite 8
+RUN npm ci --legacy-peer-deps
 COPY widget/ ./
 RUN npm run build
 
