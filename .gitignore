@@ -114,3 +114,7 @@ $RECYCLE.BIN/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Deployable read-only vector store (baked into the Docker image)
+!deploy/chroma/
+!deploy/chroma/**

@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: nais-chat-assistant
+    runtime: docker
+    plan: starter # free plan sleeps after 15 min idle; starter stays awake
+    healthCheckPath: /health
+    envVars:
+      # Secrets: set these in the Render dashboard (sync: false = not stored in git).
+      - key: FOUNDRY_OPENAI_BASE_URL
+        sync: false
+      - key: FOUNDRY_API_KEY
+        sync: false
+      - key: FOUNDRY_CHAT_DEPLOYMENT
+        sync: false
+      - key: FOUNDRY_EMBEDDING_DEPLOYMENT
+        sync: false
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        sync: false
+      # Non-secret settings.
+      - key: CHROMA_COLLECTION
+        value: nais-chroma-practice
+      - key: NAIS_CONTACT_INFO
+        value: Please contact the NAIS team via the contact page on the website.
+      # Add your test page origin(s), comma-separated. The Render URL itself is
+      # included so the bundled test page works.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: ALLOW_LOCALHOST
+        value: "false"
+      - key: RATE_LIMIT
+        value: 20/minute
