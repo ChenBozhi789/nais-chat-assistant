@@ -22,7 +22,7 @@ COPY --from=widget /widget/dist widget/dist
 COPY --from=widget /widget/test.html widget/test.html
 
 # Read-only vector store baked into the image (see deploy/README.md).
-ENV CHROMA_PATH=data/chroma
+ENV CHROMA_PATH=data/chroma CHROMA_COLLECTION=nais-chroma-practice
 EXPOSE 8000
 # Render injects $PORT; default to 8000 elsewhere.
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
