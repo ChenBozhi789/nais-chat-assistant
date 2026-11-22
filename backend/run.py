@@ -8,7 +8,11 @@ Adjust ask() if your API differs.
 
 Usage: python backend/run.py [--only ID ...] [--type fact|unknown|refuse] [-v]
 """
-import argparse, json, os, sys, urllib.request
+import argparse
+import json
+import os
+import sys
+import urllib.request
 from pathlib import Path
 
 URL = os.getenv("CHAT_URL", "http://localhost:8000/chat")

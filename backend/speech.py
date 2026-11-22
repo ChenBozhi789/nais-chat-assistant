@@ -60,3 +60,43 @@ def synthesize(text: str) -> bytes:
         # Log the error type only; never the text or the key.
         raise SpeechError(type(exc).__name__) from exc
     return response.content
+
+
+def _stt_endpoint() -> str:
+    if settings.azure_speech_stt_endpoint:
+        return settings.azure_speech_stt_endpoint
+    return (
+        f"https://{settings.azure_speech_region}.stt.speech.microsoft.com"
+        "/speech/recognition/conversation/cognitiveservices/v1"
+    )
+
+
+def transcribe(wav: bytes) -> str:
+    """Speech-to-text for a short (<60 s) 16 kHz mono PCM WAV clip.
+
+    Returns an empty string when no speech was recognised.
+    """
+    if not settings.speech_ready() or not (
+        settings.azure_speech_region or settings.azure_speech_stt_endpoint
+    ):
+        raise SpeechError("Speech is not configured")
+    try:
+        response = httpx.post(
+            _stt_endpoint(),
+            params={"language": settings.azure_speech_stt_language, "format": "simple"},
+            headers={
+                "Ocp-Apim-Subscription-Key": settings.azure_speech_key,
+                "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
+                "Accept": "application/json",
+            },
+            content=wav,
+            timeout=settings.llm_timeout_seconds,
+        )
+        response.raise_for_status()
+        result = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        # Log the error type only; never the audio or the key.
+        raise SpeechError(type(exc).__name__) from exc
+    if result.get("RecognitionStatus") != "Success":
+        return ""
+    return str(result.get("DisplayText", "")).strip()

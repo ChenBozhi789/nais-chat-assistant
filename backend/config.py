@@ -61,6 +61,9 @@ class Settings:
     azure_speech_endpoint: str
     azure_speech_voice: str
     tts_rate_limit: str
+    azure_speech_stt_endpoint: str
+    azure_speech_stt_language: str
+    stt_rate_limit: str
 
     def speech_ready(self) -> bool:
         """TTS needs a key plus either a region or a full endpoint URL."""
@@ -116,6 +119,9 @@ def load_settings() -> Settings:
         azure_speech_endpoint=os.getenv("AZURE_SPEECH_ENDPOINT", ""),
         azure_speech_voice=os.getenv("AZURE_SPEECH_VOICE", "en-NZ-MollyNeural"),
         tts_rate_limit=os.getenv("TTS_RATE_LIMIT", "10/minute"),
+        azure_speech_stt_endpoint=os.getenv("AZURE_SPEECH_STT_ENDPOINT", ""),
+        azure_speech_stt_language=os.getenv("AZURE_SPEECH_STT_LANGUAGE", "en-NZ"),
+        stt_rate_limit=os.getenv("STT_RATE_LIMIT", "10/minute"),
     )
 
 

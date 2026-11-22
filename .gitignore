@@ -76,17 +76,11 @@ chroma_db/
 data/chroma/
 evaluation/chroma/db/
 data/processed/
-content/chunks/
-content/exports/
-content/chunk-updated.txt
 data/index/
-evaluation/retrieval-results.json
 evaluation/results/
 
 # --- Local-only docs, drafts, and source website content ---
-docs/
 Claude outputs/
-content/nais-website/
 
 # --- Logs and runtime ---
 *.log
@@ -116,5 +110,21 @@ $RECYCLE.BIN/
 !.vscode/settings.json
 
 # Deployable read-only vector store (baked into the Docker image)
-!deploy/chroma/
-!deploy/chroma/**
+!deploy/chroma-snapshot/
+!deploy/chroma-snapshot/**
+
+# --- MCP Azure Functions project: local settings may hold secrets ---
+mcp_tools/mcp-server/local.settings.json
+
+# --- Cloud identifiers and local-only notes (the repo is public) ---
+# VS Code MCP client config holds the Function App host name and subscription id.
+mcp_tools/mcp-server/.vscode/mcp.json
+# Deployment guide and manual comparison notes are drafts, kept locally like docs/.
+mcp_tools/mcp-server/*.docx
+evaluation/*.rtf
+
+# --- Local-only data and documents (not pushed) ---
+# content/: website sources, reviewed chunks, embeddings, exports (derived, large)
+content/
+# docs/: drafts, proposals and guides
+docs/

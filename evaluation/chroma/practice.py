@@ -18,8 +18,8 @@ from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
 
 ROOT = Path(__file__).resolve().parents[2]
-# SOURCE_DIR = ROOT / "content/embedding/nais-content-basic-pages"
-SOURCE_DIR = ROOT / "content/embedding/nais-content-curated-tutorials"
+# SOURCE_DIR = ROOT / "content/embedding/basic-pages"
+SOURCE_DIR = ROOT / "content/embedding/curated-tutorials"
 DB_DIR = Path(__file__).resolve().parent / "db"
 COLLECTION_NAME = "nais-chroma-practice"
 BATCH_SIZE = 32

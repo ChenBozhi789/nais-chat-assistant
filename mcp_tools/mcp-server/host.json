@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "logging": { "logLevel": { "default": "Information" } },
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.*, 5.0.0)"
+  },
+  "extensions": {
+    "mcp": {
+      "serverName": "nais-documents",
+      "serverVersion": "1.0.0",
+      "instructions": "Read-only access to approved NAIS Markdown documents. Call search_documents first, then read_document with an exact filename from the results."
+    }
+  }
+}

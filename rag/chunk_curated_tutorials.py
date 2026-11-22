@@ -18,7 +18,7 @@ RAW_DIR = ROOT_DIR / "content/nais-website/raw/curated-tutorials"
 def main() -> None:
     run_preview(
         ".pdf",
-        "curated-tutorial",
+        "curated-tutorials",
         __doc__ or "Tutorial chunk preview",
         source_dir=SOURCE_DIR,
         raw_dir=RAW_DIR,

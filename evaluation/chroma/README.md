@@ -1,6 +1,6 @@
 # 从零练习 Chroma
 
-这个目录只用来学习本地向量检索。NAIS MVP 的正式方案仍按项目 `AGENTS.md` 使用 Azure AI Search。这里使用的 71 条数据来自 `content/embedding/nais-content-basic-pages/`，是已有的 Azure AI Search 导出文件；导入 Chroma 时**不会重新生成文档向量**。
+这个目录只用来学习本地向量检索。NAIS MVP 的正式方案仍按项目 `AGENTS.md` 使用 Azure AI Search。这里使用的 71 条数据来自 `content/embedding/basic-pages/`，是已有的 Azure AI Search 导出文件；导入 Chroma 时**不会重新生成文档向量**。
 
 ## 1. 先弄清四个概念
 
@@ -53,7 +53,7 @@ python3.11 -m venv .venv
 
 ## 4. 看懂现有的 embedding 导出
 
-`content/embedding/nais-content-basic-pages/` 下有：
+`content/embedding/basic-pages/` 下有：
 
 - `documents.jsonl`：每行一个 JSON 对象，包含 `id`、`content`、`embedding` 和来源字段。
 - `manifest.json`：记录总数、向量维度及 JSONL 文件的 SHA-256 校验值。

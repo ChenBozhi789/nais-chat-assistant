@@ -133,3 +133,20 @@ export async function fetchSpeech(
   if (!response.ok) throw new Error(`tts ${response.status}`);
   return response.blob();
 }
+
+/** Send a 16 kHz mono WAV clip to POST /stt and return the transcript ("" if none). */
+export async function transcribeAudio(
+  apiBase: string,
+  wav: Blob,
+  signal?: AbortSignal,
+): Promise<string> {
+  const response = await fetch(`${apiBase}/stt`, {
+    method: "POST",
+    headers: { "Content-Type": "audio/wav" },
+    body: wav,
+    signal,
+  });
+  if (!response.ok) throw new Error(`stt ${response.status}`);
+  const data = (await response.json()) as { text?: unknown };
+  return typeof data.text === "string" ? data.text : "";
+}

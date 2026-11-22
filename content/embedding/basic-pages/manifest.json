@@ -1,8 +1,0 @@
-{
-  "index": "nais-content",
-  "exported_at_utc": "20261112T060354Z",
-  "documents": 71,
-  "embedding_field": "embedding",
-  "embedding_dimensions": 1536,
-  "documents_sha256": "9392d10d47a031130c9ef636ffec4f32d0d78ebe761a6dd9ff2748499bf54d13"
-}

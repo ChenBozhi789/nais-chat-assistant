@@ -51,11 +51,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
+  gap: 8px;
+  min-width: 56px;
   height: 56px;
-  padding: 0;
+  padding: 0 22px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
   background: var(--blue);
   color: #fff;
   cursor: pointer;
@@ -66,6 +70,12 @@
   background: var(--blue-dark);
 }
 
+/* While the window is open the launcher collapses to a round close button. */
+.bubble.is-open {
+  width: 56px;
+  padding: 0;
+}
+
 /* Chat window */
 .window {
   position: fixed;
@@ -74,12 +84,13 @@
   z-index: 2147483000;
   display: flex;
   flex-direction: column;
-  width: 360px;
+  width: 400px;
+  max-width: calc(100vw - 40px);
   height: min(500px, calc(100vh - 108px));
   overflow: hidden;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 24px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   animation: nais-pop 0.15s ease-out;
 }
@@ -123,7 +134,7 @@
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 50%;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
@@ -147,8 +158,8 @@
 
 .msg {
   max-width: 88%;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 9px 14px;
+  border-radius: 18px;
   overflow-wrap: anywhere;
 }
 
@@ -170,13 +181,16 @@
   padding-left: 20px;
 }
 
+/* Small "tail" corner on the side the message comes from. */
 .msg.user {
+  border-bottom-right-radius: 6px;
   align-self: flex-end;
   background: var(--blue);
   color: #fff;
 }
 
 .msg.assistant {
+  border-bottom-left-radius: 6px;
   align-self: flex-start;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -222,26 +236,56 @@
 
 /* Starter questions */
 .starters {
+  flex: none;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 6px;
+  padding: 8px 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+/* Avoid a double divider when the topics sit right above the composer. */
+.starters + .composer {
+  border-top: 0;
+}
+
+.starters-title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* First topic spans the row; the rest sit side by side and stack when the
+   window is too narrow for two comfortable columns. */
+.starter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.starter-grid .starter:first-child {
+  grid-column: 1 / -1;
 }
 
 .starter {
-  padding: 6px 12px;
-  border: 1px solid var(--blue);
-  border-radius: 5px;
-  background: transparent;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid #8fb8dc;
+  border-radius: 8px;
+  background: #eaf3fb;
   color: var(--blue-dark);
   font: inherit;
   font-size: 14px;
-  text-align: left;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
 .starter:hover {
-  background: var(--surface);
+  background: #d9eaf8;
+  border-color: var(--blue);
 }
 
 /* Typing indicator */
@@ -295,9 +339,9 @@
 
 .retry {
   margin-top: 8px;
-  padding: 6px 12px;
+  padding: 6px 16px;
   border: 1px solid var(--blue);
-  border-radius: 5px;
+  border-radius: 999px;
   background: #fff;
   color: var(--blue-dark);
   font: inherit;
@@ -314,23 +358,31 @@
 .composer {
   flex: none;
   display: flex;
+  align-items: flex-end;
   gap: 8px;
   padding: 10px 12px 6px;
   border-top: 1px solid var(--border);
 }
 
-.composer input {
+.composer textarea {
   flex: 1;
   min-width: 0;
-  padding: 8px 10px;
+  box-sizing: border-box;
+  resize: none;
+  overflow-y: auto;
+  max-height: 140px;
+  line-height: 1.4;
+  min-height: 40px;
+  padding: 7px 16px;
   border: 1px solid #9ca0af;
-  border-radius: 5px;
+  /* Pill shape; at 20px it stays a tidy rounded box once the text wraps. */
+  border-radius: 20px;
   background: #fff;
   color: var(--text);
   font: inherit;
 }
 
-.composer input::placeholder {
+.composer textarea::placeholder {
   color: var(--text-secondary);
 }
 
@@ -339,9 +391,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
+  width: 40px;
+  height: 40px;
   border: 1px solid #9ca0af;
-  border-radius: 5px;
+  border-radius: 50%;
   background: #fff;
   color: var(--blue-dark);
   cursor: pointer;
@@ -384,9 +437,10 @@
 }
 
 .send {
-  padding: 8px 16px;
+  height: 40px;
+  padding: 0 20px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 999px;
   background: var(--blue);
   color: #fff;
   font: inherit;

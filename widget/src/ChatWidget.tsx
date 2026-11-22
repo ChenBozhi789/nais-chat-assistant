@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ChatApiError, fetchSpeech, sendChat, type HistoryTurn, type Source } from "./api";
 import type { WidgetConfig } from "./config";
 import { FormattedText } from "./FormattedText";
 import { useSpeechInput } from "./useSpeechInput";
 
 /** Language the browser should listen for (New Zealand English). */
-const VOICE_INPUT_LANG = "en-NZ";
-
 const MAX_MESSAGE_CHARS = 1000;
 const MAX_HISTORY_TURNS = 6;
 const MAX_HISTORY_CHARS = 2000;
@@ -14,20 +12,18 @@ const MAX_HISTORY_CHARS = 2000;
 const WELCOME =
   "Kia ora! My name is Jack, I am here to help you with your questions about the Nelson AI Sandbox.";
 
+// `label` is the short text on the button; `question` is what actually gets sent.
 const STARTERS = [
-  "Where is the Sandbox and when is it open?",
-  "What workshops are coming up?",
-  "What free AI tools can I use?",
+  { label: "Where is the Sandbox and when is it open?", question: "Where is the Sandbox and when is it open?" },
+  { label: "Upcoming workshops", question: "What workshops are coming up?" },
+  { label: "Free AI tools", question: "What free AI tools can I use?" },
 ];
 
 const AUTO_OPEN_DELAY_MS = 300;
 const AUTO_OPEN_KEY = "nais-assistant-greeted";
 
 const PRIVACY_NOTICE =
-  "AI answers can contain mistakes, so check key details with NAIS. " +
-  "Your messages (and voice input, if used, which your browser may process " +
-  "through its speech service) are sent to an AI service to write replies, so please don't " +
-  "share personal information. This chat isn't saved after you leave the page.";
+  "AI can make mistakes. Please check important details with NAIS.";
 
 interface Message {
   id: number;
@@ -157,7 +153,16 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
   const failed = useRef<{ question: string; prior: Message[] } | null>(null);
   const abort = useRef<AbortController | null>(null);
   const bubbleRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the textarea with its content (CSS max-height then makes it scroll).
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // border-box height: scrollHeight excludes the borders, so add them back.
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [input, open]);
   const listRef = useRef<HTMLDivElement>(null);
 
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -236,7 +241,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
     else void speak(lastAssistant ? toSpeakable(lastAssistant.content) : WELCOME);
   };
 
-  const mic = useSpeechInput(VOICE_INPUT_LANG, (text) => setInput(text.slice(0, MAX_MESSAGE_CHARS)));
+  const mic = useSpeechInput(config.apiBase, (text) => setInput(text.slice(0, MAX_MESSAGE_CHARS)));
 
   const toggleMic = () => {
     if (mic.listening) {
@@ -384,14 +389,15 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
     <div className="nais-root">
       <button
         ref={bubbleRef}
-        className="bubble"
+        className={`bubble${open ? " is-open" : ""}`}
         type="button"
-        aria-label={open ? "Close NAIS Assistant" : "Open NAIS Assistant"}
+        aria-label={open ? "Close NAIS Assistant" : "Ask NAIS, open the assistant"}
         aria-expanded={open}
         aria-controls="nais-chat-window"
         onClick={() => (open ? close() : setOpen(true))}
       >
         {open ? <CloseIcon /> : <ChatIcon />}
+        {!open && <span className="bubble-label">Start Chat</span>}
       </button>
 
       {open && (
@@ -445,21 +451,6 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
               )}
             </div>
 
-            {messages.length === 0 && (
-              <div className="starters">
-                {STARTERS.map((starter) => (
-                  <button
-                    key={starter}
-                    type="button"
-                    className="starter"
-                    onClick={() => submit(starter)}
-                  >
-                    {starter}
-                  </button>
-                ))}
-              </div>
-            )}
-
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -506,19 +497,41 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
             )}
           </div>
 
+          {messages.length === 0 && (
+            // Pinned just above the input so the topics are always in reach.
+            <div className="starters" role="group" aria-label="Suggested topics">
+              <p className="starters-title">Suggested topics</p>
+              <div className="starter-grid">
+                {STARTERS.map((starter) => (
+                  <button
+                    key={starter.question}
+                    type="button"
+                    className="starter"
+                    onClick={() => submit(starter.question)}
+                  >
+                    {starter.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <form className="composer" onSubmit={onSubmit}>
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={1}
               value={input}
               maxLength={MAX_MESSAGE_CHARS}
-              placeholder={mic.listening ? "Listening…" : "Type your question…"}
+              placeholder={
+                mic.listening ? "Listening…" : mic.transcribing ? "Transcribing…" : "Type your question…"
+              }
               aria-label="Your question"
               autoComplete="off"
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
                 // Enter sends; ignore Enter that only confirms an IME composition.
-                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                // Shift+Enter inserts a newline.
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   mic.stop();
                   submit(input);
@@ -531,6 +544,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
                 className={`mic${mic.listening ? " listening" : ""}`}
                 aria-label={mic.listening ? "Stop voice input" : "Speak your question"}
                 aria-pressed={mic.listening}
+                disabled={mic.transcribing}
                 onClick={toggleMic}
               >
                 <MicIcon />

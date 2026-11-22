@@ -1,9 +1,9 @@
 # Deploying to Render (test environment)
 
-`deploy/chroma/` is a copy of the vector store (collection `nais-chroma-practice`),
+`deploy/chroma-snapshot/` is a read-only copy of the vector store (collection `nais-chroma-practice`),
 committed so the Docker image carries it. Refresh it after re-ingesting:
 
-    rm -rf deploy/chroma && cp -R evaluation/chroma/db deploy/chroma
+    rm -rf deploy/chroma-snapshot && cp -R evaluation/chroma/db deploy/chroma-snapshot
 
 ## Steps
 

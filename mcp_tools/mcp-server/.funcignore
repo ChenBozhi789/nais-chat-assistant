@@ -1,0 +1,10 @@
+.venv
+.git*
+.vscode
+__pycache__
+.pytest_cache
+.azurite
+tests
+requirements-dev.txt
+local.settings.json
+local.settings.json.example

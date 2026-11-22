@@ -16,7 +16,7 @@ WORKDIR /app
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ backend/
-COPY deploy/chroma/ data/chroma/
+COPY deploy/chroma-snapshot/ data/chroma/
 COPY --from=widget /widget/dist widget/dist
 # Mock host page, served at "/" for testers.
 COPY --from=widget /widget/test.html widget/test.html
@@ -25,4 +25,4 @@ COPY --from=widget /widget/test.html widget/test.html
 ENV CHROMA_PATH=data/chroma CHROMA_COLLECTION=nais-chroma-practice
 EXPOSE 8000
 # Render injects $PORT; default to 8000 elsewhere.
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn backend.impl1_chat_completions_chroma.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
