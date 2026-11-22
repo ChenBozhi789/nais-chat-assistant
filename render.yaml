@@ -1,3 +1,6 @@
+# Which implementation runs is chosen in the Dockerfile (the CMD line).
+# Keep this file in sync: use the "IMPL 3" env vars below with CMD for impl 3,
+# or the "IMPL 1" block (commented out) with CMD for impl 1.
 services:
   - type: web
     name: nais-chat-assistant
@@ -6,21 +9,55 @@ services:
     healthCheckPath: /health
     envVars:
       # Secrets: set these in the Render dashboard (sync: false = not stored in git).
-      - key: FOUNDRY_OPENAI_BASE_URL
+
+      # --- IMPL 3: Foundry agent + remote MCP (currently active) ---
+      # Entra ID service principal; DefaultAzureCredential reads these three.
+      # It needs a role on the Foundry project that allows calling agents
+      # (e.g. Azure AI User).
+      - key: AZURE_TENANT_ID
         sync: false
-      - key: FOUNDRY_API_KEY
+      - key: AZURE_CLIENT_ID
         sync: false
-      - key: FOUNDRY_CHAT_DEPLOYMENT
+      - key: AZURE_CLIENT_SECRET
         sync: false
-      - key: FOUNDRY_EMBEDDING_DEPLOYMENT
+      - key: FOUNDRY_PROJECT_ENDPOINT
         sync: false
+      - key: FOUNDRY_MCP_AGENT_NAME
+        sync: false
+      # Server label of the MCP tool in the Foundry portal. If empty, every MCP
+      # approval request is denied and the agent cannot read documents.
+      - key: FOUNDRY_MCP_SERVER_LABEL
+        sync: false
+      - key: FOUNDRY_MCP_APPROVED_TOOLS
+        value: list_documents,read_document
+      # An agent needs several tool rounds, so allow more than the 20 s default.
+      - key: LLM_TIMEOUT_SECONDS
+        value: "60"
+
+      # --- IMPL 2: Foundry agent + File Search (uncomment with its CMD) ---
+      # - key: AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET  (as above)
+      # - key: FOUNDRY_PROJECT_ENDPOINT
+      #   sync: false
+      # - key: FOUNDRY_FILE_SEARCH_AGENT_NAME
+      #   sync: false
+
+      # --- IMPL 1: Chat completions + Chroma (uncomment with its CMD and COPY) ---
+      # - key: FOUNDRY_OPENAI_BASE_URL
+      #   sync: false
+      # - key: FOUNDRY_API_KEY
+      #   sync: false
+      # - key: FOUNDRY_CHAT_DEPLOYMENT
+      #   sync: false
+      # - key: FOUNDRY_EMBEDDING_DEPLOYMENT
+      #   sync: false
+      # - key: CHROMA_COLLECTION
+      #   value: nais-chroma-practice
+
+      # --- Shared by all implementations ---
       - key: AZURE_SPEECH_KEY
         sync: false
       - key: AZURE_SPEECH_REGION
         sync: false
-      # Non-secret settings.
-      - key: CHROMA_COLLECTION
-        value: nais-chroma-practice
       - key: NAIS_CONTACT_INFO
         value: Please contact the NAIS team via the contact page on the website.
       # Add your test page origin(s), comma-separated. The Render URL itself is
