@@ -11,7 +11,7 @@ services:
     envVars:
       # Secrets: set these in the Render dashboard (sync: false = not stored in git).
 
-      # --- IMPL 3 / IMPL 4: Foundry agent + remote MCP (impl 4 currently active) ---
+      # --- IMPL 3 / IMPL 4: Foundry agent + remote MCP (impl 3 currently active) ---
       # Entra ID service principal; DefaultAzureCredential reads these three.
       # It needs a role on the Foundry project that allows calling agents
       # (e.g. Azure AI User).
@@ -58,6 +58,11 @@ services:
       - key: AZURE_SPEECH_KEY
         sync: false
       - key: AZURE_SPEECH_REGION
+        sync: false
+      # Speech-to-text and text-to-speech endpoints of the AI Services resource.
+      - key: AZURE_SPEECH_ENDPOINT
+        sync: false
+      - key: AZURE_SPEECH_STT_ENDPOINT
         sync: false
       - key: NAIS_CONTACT_INFO
         value: Please contact the NAIS team via the contact page on the website.

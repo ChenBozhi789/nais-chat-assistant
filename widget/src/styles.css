@@ -419,6 +419,13 @@
   outline-offset: 2px;
 }
 
+/* Voice mode is on but the assistant is busy (thinking or speaking). */
+.mic.active {
+  border-color: var(--blue-dark);
+  background: var(--blue-dark);
+  color: #fff;
+}
+
 .mic.listening {
   border-color: #b91c1c;
   background: #b91c1c;

@@ -22,6 +22,10 @@ const STARTERS = [
 const AUTO_OPEN_DELAY_MS = 300;
 const AUTO_OPEN_KEY = "nais-assistant-greeted";
 
+/** No conversation for this long ends voice mode; a longer silence closes the window. */
+const VOICE_IDLE_MS = 60_000;
+const WINDOW_IDLE_MS = 180_000;
+
 const PRIVACY_NOTICE =
   "AI can make mistakes. Please check important details with NAIS.";
 
@@ -49,11 +53,25 @@ function toHistory(messages: Message[]): HistoryTurn[] {
   }));
 }
 
+/**
+ * Drop a trailing "Sources:" / "References:" list the model wrote into its reply
+ * (it names raw files such as `about-us.md`). The widget's own Sources list shows
+ * the page titles and links instead.
+ */
+function stripSourcesList(text: string): string {
+  return text
+    .replace(
+      /\n[ \t]*(?:#+[ \t]*)?(?:\*\*)?(?:Sources?|References?)(?:\*\*)?:?(?:\*\*)?[ \t]*(?:\n[\s\S]*)?$/i,
+      "",
+    )
+    .trimEnd();
+}
+
 const MAX_SPOKEN_CHARS = 1400;
 
 /** Plain text for the voice: drop markdown symbols and keep it under the /tts limit. */
 function toSpeakable(text: string): string {
-  const plain = text
+  const plain = stripSourcesList(text)
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/https?:\/\/\S+/g, "")
     .replace(/[*_#`>]/g, "")
@@ -176,7 +194,9 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
 
   const audio = useRef<HTMLAudioElement | null>(null);
   const speechAbort = useRef<AbortController | null>(null);
-  const [, setSpeaking] = useState(false);
+  // True from the moment a reply is sent to /tts until its audio has finished.
+  // Voice mode does not listen while this is true, so it never hears the assistant.
+  const [speakBusy, setSpeakBusy] = useState(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [hintShown, setHintShown] = useState(false);
   // Replies are read aloud while voice is on; the speaker button turns it off.
@@ -187,7 +207,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
     speechAbort.current?.abort();
     audio.current?.pause();
     audio.current = null;
-    setSpeaking(false);
+    setSpeakBusy(false);
   }, []);
 
   /** Read text aloud. If the browser blocks autoplay, wait for the first user gesture. */
@@ -196,6 +216,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
       stopSpeech();
       const controller = new AbortController();
       speechAbort.current = controller;
+      setSpeakBusy(true);
       try {
         const blob = await fetchSpeech(config.apiBase, text, controller.signal);
         if (controller.signal.aborted) return;
@@ -204,13 +225,12 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
         audio.current = player;
         const done = () => {
           URL.revokeObjectURL(url);
-          setSpeaking(false);
+          if (speechAbort.current === controller) setSpeakBusy(false);
         };
         player.onended = done;
         player.onerror = done;
         try {
           await player.play();
-          setSpeaking(true);
           setNeedsTap(false);
         } catch (error) {
           if (!(error instanceof DOMException) || error.name !== "NotAllowedError") {
@@ -225,14 +245,14 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
             document.removeEventListener("keydown", resume, true);
             if (audio.current !== player) return;
             setNeedsTap(false);
-            player.play().then(() => setSpeaking(true), done);
+            player.play().catch(done);
           };
           document.addEventListener("pointerdown", resume, true);
           document.addEventListener("keydown", resume, true);
         }
       } catch {
         // Voice is optional: if it fails the text greeting is still shown.
-        if (!controller.signal.aborted) setSpeaking(false);
+        if (!controller.signal.aborted) setSpeakBusy(false);
       }
     },
     [config.apiBase, stopSpeech],
@@ -250,25 +270,43 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
     else void speak(lastAssistant ? toSpeakable(lastAssistant.content) : WELCOME);
   };
 
-  const mic = useSpeechInput(config.apiBase, (text) => setInput(text.slice(0, MAX_MESSAGE_CHARS)));
+  // Voice mode: the microphone listens turn after turn, hands-free, and each
+  // spoken turn is sent automatically. Typing, a reply being written or read
+  // aloud, or leaving the page pauses or ends it (see the effects below).
+  const [voiceMode, setVoiceMode] = useState(false);
+  // Bumped on every visitor action; restarts the idle timers.
+  const [activity, setActivity] = useState(0);
+  const bump = useCallback(() => setActivity((n) => n + 1), []);
+  const submitRef = useRef<(text: string) => void>(() => {});
+
+  const mic = useSpeechInput(config.apiBase, {
+    onText: (text) => submitRef.current(text.slice(0, MAX_MESSAGE_CHARS)),
+    onSpeechStart: bump,
+  });
+  const { cancel: cancelMic, start: startMic } = mic;
 
   const toggleMic = () => {
-    if (mic.listening) {
-      mic.stop();
+    bump();
+    if (voiceMode) {
+      setVoiceMode(false);
+      cancelMic();
       return;
     }
-    // Silence the assistant so it doesn't hear itself.
+    // Silence the assistant so it doesn't hear itself; listening starts via the effect.
     stopSpeech();
     setNeedsTap(false);
     setInput("");
-    mic.start();
+    cancelMic(); // also clears a previous microphone error
+    setVoiceMode(true);
   };
 
   const close = useCallback(() => {
     stopSpeech();
+    setVoiceMode(false);
+    cancelMic();
     setOpen(false);
     bubbleRef.current?.focus();
-  }, [stopSpeech]);
+  }, [cancelMic, stopSpeech]);
 
   // Once per browser session: open the window shortly after load and read the greeting.
   useEffect(() => {
@@ -417,12 +455,18 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
         content: question,
       };
       stopSpeech();
+      // Sending resets the voice side: drop any recording or transcript still
+      // pending (it would otherwise land in the box after sending) and clear
+      // the box, ready for the next turn.
+      cancelMic();
       setMessages((current) => [...current, userMessage]);
       setInput("");
+      bump();
       void ask(question, messages);
     },
-    [ask, messages, status, stopSpeech],
+    [ask, bump, messages, cancelMic, status, stopSpeech],
   );
+  submitRef.current = submit;
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -432,6 +476,55 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
   const retry = () => {
     if (failed.current) void ask(failed.current.question, failed.current.prior);
   };
+
+  // Voice mode listens only while nothing else is going on: the window is open,
+  // no reply is loading/streaming, none is being read aloud, and the box is empty.
+  const canListen =
+    voiceMode && open && status === "idle" && !speakBusy && input === "";
+  useEffect(() => {
+    if (canListen) {
+      if (!mic.listening && !mic.transcribing && !mic.error) void startMic();
+    } else if (mic.listening) {
+      cancelMic();
+    }
+  }, [canListen, mic.listening, mic.transcribing, mic.error, startMic, cancelMic]);
+
+  // A microphone problem ends voice mode (the message stays visible under the box).
+  useEffect(() => {
+    if (mic.error) setVoiceMode(false);
+  }, [mic.error]);
+
+  // Hidden tab: stop listening so the microphone is not held in the background.
+  useEffect(() => {
+    if (!voiceMode) return;
+    const onVisibility = () => {
+      if (document.hidden) {
+        setVoiceMode(false);
+        cancelMic();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [voiceMode, cancelMic]);
+
+  // Idle rules (like a call-centre widget): 1 minute without conversation ends
+  // voice mode; 3 minutes closes the window. Timers only run while the assistant
+  // is not busy, and restart on every visitor action or finished reply.
+  const assistantBusy = status === "loading" || status === "streaming" || speakBusy;
+  useEffect(() => {
+    if (!voiceMode || assistantBusy || mic.transcribing) return;
+    const timer = window.setTimeout(() => {
+      setVoiceMode(false);
+      cancelMic();
+    }, VOICE_IDLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [voiceMode, assistantBusy, mic.transcribing, cancelMic, activity, messages, input]);
+
+  useEffect(() => {
+    if (!open || assistantBusy || mic.transcribing) return;
+    const timer = window.setTimeout(close, WINDOW_IDLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, assistantBusy, mic.transcribing, close, activity, messages, input]);
 
   return (
     <div className="nais-root">
@@ -506,7 +599,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
                 className={`msg ${message.role}`}
               >
                 {message.role === "assistant" ? (
-                  <FormattedText text={message.content} />
+                  <FormattedText text={stripSourcesList(message.content)} />
                 ) : (
                   <p>{message.content}</p>
                 )}
@@ -571,17 +664,25 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
               value={input}
               maxLength={MAX_MESSAGE_CHARS}
               placeholder={
-                mic.listening ? "Listening…" : mic.transcribing ? "Transcribing…" : "Type your question…"
+                mic.listening
+                  ? "Listening…"
+                  : mic.transcribing
+                    ? "Transcribing…"
+                    : voiceMode
+                      ? "Voice on…"
+                      : "Type your question…"
               }
               aria-label="Your question"
               autoComplete="off"
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                setInput(event.target.value);
+                bump();
+              }}
               onKeyDown={(event) => {
                 // Enter sends; ignore Enter that only confirms an IME composition.
                 // Shift+Enter inserts a newline.
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
-                  mic.stop();
                   submit(input);
                 }
               }}
@@ -589,10 +690,9 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
             {mic.supported && (
               <button
                 type="button"
-                className={`mic${mic.listening ? " listening" : ""}`}
-                aria-label={mic.listening ? "Stop voice input" : "Speak your question"}
-                aria-pressed={mic.listening}
-                disabled={mic.transcribing}
+                className={`mic${voiceMode ? " active" : ""}${mic.listening ? " listening" : ""}`}
+                aria-label={voiceMode ? "Turn off voice conversation" : "Start voice conversation"}
+                aria-pressed={voiceMode}
                 onClick={toggleMic}
               >
                 <MicIcon />

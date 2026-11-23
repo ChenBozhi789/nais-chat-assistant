@@ -2,8 +2,8 @@
 # lines marked "IMPL 1" to "IMPL 4" below; keep exactly one CMD active.
 #   IMPL 1  Chat completions + Chroma   (needs the Chroma snapshot in the image)
 #   IMPL 2  Foundry agent + File Search
-#   IMPL 3  Foundry agent + remote MCP
-#   IMPL 4  Impl 3 with streamed replies (currently active)
+#   IMPL 3  Foundry agent + remote MCP  (currently active)
+#   IMPL 4  Impl 3 with streamed replies
 
 # Stage 1: build the widget bundle (widget/dist/widget.js).
 # VITE_API_URL is intentionally unset: the widget then calls the origin it was
@@ -41,7 +41,7 @@ EXPOSE 8000
 # CMD ["sh", "-c", "uvicorn backend.impl2_agent_file_search.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
 # IMPL 3: Foundry agent + remote MCP
-# CMD ["sh", "-c", "uvicorn backend.impl3_agent_mcp.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn backend.impl3_agent_mcp.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
 # IMPL 4: Foundry agent + remote MCP, streamed replies
-CMD ["sh", "-c", "uvicorn backend.impl4_agent_mcp_stream.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# CMD ["sh", "-c", "uvicorn backend.impl4_agent_mcp_stream.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -79,7 +79,10 @@ def transcribe(wav: bytes) -> str:
     if not settings.speech_ready() or not (
         settings.azure_speech_region or settings.azure_speech_stt_endpoint
     ):
-        raise SpeechError("Speech is not configured")
+        raise SpeechError(
+            "Speech-to-text is not configured: set AZURE_SPEECH_REGION or "
+            "AZURE_SPEECH_STT_ENDPOINT (AZURE_SPEECH_ENDPOINT only covers text-to-speech)"
+        )
     try:
         response = httpx.post(
             _stt_endpoint(),
@@ -95,8 +98,9 @@ def transcribe(wav: bytes) -> str:
         response.raise_for_status()
         result = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        # Log the error type only; never the audio or the key.
-        raise SpeechError(type(exc).__name__) from exc
+        # Log the error type and HTTP status only; never the audio or the key.
+        status = getattr(getattr(exc, "response", None), "status_code", "n/a")
+        raise SpeechError(f"{type(exc).__name__} (HTTP {status})") from exc
     if result.get("RecognitionStatus") != "Success":
         return ""
     return str(result.get("DisplayText", "")).strip()

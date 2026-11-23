@@ -121,7 +121,7 @@ def load_settings() -> Settings:
         tts_rate_limit=os.getenv("TTS_RATE_LIMIT", "10/minute"),
         azure_speech_stt_endpoint=os.getenv("AZURE_SPEECH_STT_ENDPOINT", ""),
         azure_speech_stt_language=os.getenv("AZURE_SPEECH_STT_LANGUAGE", "en-NZ"),
-        stt_rate_limit=os.getenv("STT_RATE_LIMIT", "10/minute"),
+        stt_rate_limit=os.getenv("STT_RATE_LIMIT", "30/minute"),
     )
 
 
