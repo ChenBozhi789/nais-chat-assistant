@@ -7,14 +7,15 @@ file knows how an answer is produced.
 
 from __future__ import annotations
 
+import json
 import logging
-from collections.abc import Callable
-from typing import Literal
+from collections.abc import Callable, Iterator
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -34,6 +35,8 @@ DEMO_PAGE = ROOT_DIR / "widget/test.html"
 LOCALHOST_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"
 
 AnswerFunction = Callable[[str, list[dict[str, str]]], Answer]
+# Yields {"type": "delta", "text"} events, then one {"type": "done", "answer", "sources"}.
+StreamFunction = Callable[[str, list[dict[str, str]]], Iterator[dict[str, Any]]]
 
 
 class Turn(BaseModel):
@@ -77,8 +80,15 @@ class STTResponse(BaseModel):
     text: str
 
 
-def create_app(answer_question: AnswerFunction) -> FastAPI:
-    """Build the API around one implementation's ``answer_question``."""
+def create_app(
+    answer_question: AnswerFunction,
+    stream_answer: StreamFunction | None = None,
+) -> FastAPI:
+    """Build the API around one implementation's ``answer_question``.
+
+    ``stream_answer`` is optional; when given, ``POST /chat/stream`` is added
+    (Server-Sent Events). Without it that route does not exist (404).
+    """
     app = FastAPI(title="NAIS Chat Assistant")
     limiter = Limiter(key_func=get_remote_address)
     app.state.limiter = limiter
@@ -177,5 +187,33 @@ def create_app(answer_question: AnswerFunction) -> FastAPI:
                 detail="The assistant is temporarily unavailable. Please try again soon.",
             ) from exc
         return ChatResponse(answer=result.text, sources=result.sources)
+
+    if stream_answer is not None:
+
+        @app.post("/chat/stream")
+        def chat_stream(request: ChatRequest) -> StreamingResponse:
+            """Same as /chat, but sent as Server-Sent Events while it is written."""
+            history = [turn.model_dump() for turn in request.history]
+
+            def events() -> Iterator[str]:
+                try:
+                    for event in stream_answer(request.message, history):
+                        yield f"data: {json.dumps(event)}\n\n"
+                except AnswerError as exc:
+                    # Headers are already sent, so report the failure as an event.
+                    logger.error("Answer failure: %s", exc)
+                    error = {
+                        "type": "error",
+                        "message": "The assistant is temporarily unavailable. "
+                        "Please try again soon.",
+                    }
+                    yield f"data: {json.dumps(error)}\n\n"
+
+            return StreamingResponse(
+                events(),
+                media_type="text/event-stream",
+                # No caching, and ask proxies (nginx) not to buffer the stream.
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
 
     return app

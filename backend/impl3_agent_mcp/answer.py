@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any
 
 from backend.agent_common import agent_client, display_title, snippet
@@ -28,6 +29,7 @@ AGENT_NAME_VARS = ("FOUNDRY_MCP_AGENT_NAME", "FOUNDRY_AGENT_NAME")
 MAX_SOURCES = 3
 MIN_ANSWER_OVERLAP = 0.3  # share of answer words that must appear in a source
 MAX_APPROVAL_ROUNDS = 6  # list_documents + a few read_document calls, then answer
+TOTAL_DEADLINE_SECONDS = 50.0  # stop starting new rounds; widget gives up at 75 s
 DEFAULT_MCP_TOOLS = "list_documents,read_document"
 # Allowed argument names per approved MCP tool (anything else is denied).
 _MCP_TOOL_ARGS = {"list_documents": set(), "read_document": {"filename"}}
@@ -70,7 +72,10 @@ def _resolve_approvals(
     tool results used for sources arrive in earlier rounds.
     """
     items: list[Any] = []
+    deadline = time.monotonic() + TOTAL_DEADLINE_SECONDS
     for _ in range(MAX_APPROVAL_ROUNDS):
+        if time.monotonic() > deadline:
+            raise AnswerError("Agent exceeded the total time limit")
         round_items = list(getattr(response, "output", None) or [])
         items.extend(round_items)
         requests = [

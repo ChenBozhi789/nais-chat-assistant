@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { ChatApiError, fetchSpeech, sendChat, type HistoryTurn, type Source } from "./api";
+import { ChatApiError, fetchSpeech, sendChatStream, type HistoryTurn, type Source } from "./api";
 import type { WidgetConfig } from "./config";
 import { FormattedText } from "./FormattedText";
 import { useSpeechInput } from "./useSpeechInput";
@@ -32,7 +32,14 @@ interface Message {
   sources?: Source[];
 }
 
-type Status = "idle" | "loading" | "error";
+const THINKING_LABEL = "Thinking";
+// Progress labels for the stages the backend reports while the visitor waits.
+const STAGE_LABELS: Record<string, string> = {
+  searching: "Searching NAIS information",
+};
+
+// "loading": waiting for the first text; "streaming": the reply is being written.
+type Status = "idle" | "loading" | "streaming" | "error";
 
 /** Only the last few turns are sent, and only from memory (nothing is stored). */
 function toHistory(messages: Message[]): HistoryTurn[] {
@@ -148,10 +155,12 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [errorText, setErrorText] = useState("");
+  const [loadingLabel, setLoadingLabel] = useState(THINKING_LABEL);
 
   const nextId = useRef(1);
   const failed = useRef<{ question: string; prior: Message[] } | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const scrolledTo = useRef(0); // id of the answer last scrolled into view
   const bubbleRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -303,13 +312,20 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
   // line (not its bottom) so the reader starts at the top of the reply.
   useEffect(() => {
     const list = listRef.current;
-    if (!list) return;
+    if (!list) {
+      scrolledTo.current = 0; // window closed: scroll again when it reopens
+      return;
+    }
     const last = messages[messages.length - 1];
     const answer =
-      status === "idle" && last?.role === "assistant"
+      (status === "idle" || status === "streaming") && last?.role === "assistant"
         ? list.querySelector<HTMLElement>(`[data-message-id="${last.id}"]`)
         : null;
     if (answer) {
+      // Scroll once per answer, so the text growing while it streams in does
+      // not fight the reader's own scrolling.
+      if (scrolledTo.current === last.id) return;
+      scrolledTo.current = last.id;
       list.scrollTop +=
         answer.getBoundingClientRect().top - list.getBoundingClientRect().top - 8;
     } else {
@@ -326,27 +342,59 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
       const controller = new AbortController();
       abort.current = controller;
       failed.current = null;
+      setLoadingLabel(THINKING_LABEL);
       setStatus("loading");
+      // Id of the assistant bubble being filled while the reply streams in.
+      let streamId: number | null = null;
+      let streamed = "";
       try {
-        const reply = await sendChat(
+        const reply = await sendChatStream(
           config.apiBase,
           question,
           toHistory(prior),
+          (text) => {
+            streamed += text;
+            if (streamId === null) {
+              const id = nextId.current++;
+              streamId = id;
+              setMessages((current) => [
+                ...current,
+                { id, role: "assistant", content: streamed },
+              ]);
+              setStatus("streaming");
+            } else {
+              const id = streamId;
+              const content = streamed;
+              setMessages((current) =>
+                current.map((m) => (m.id === id ? { ...m, content } : m)),
+              );
+            }
+          },
+          (stage) => setLoadingLabel(STAGE_LABELS[stage] ?? THINKING_LABEL),
           controller.signal,
         );
-        setMessages((current) => [
-          ...current,
-          {
-            id: nextId.current++,
-            role: "assistant",
-            content: reply.answer,
-            sources: reply.sources,
-          },
-        ]);
+        // The final answer replaces the streamed text (it is the trimmed full reply).
+        const id = streamId ?? nextId.current++;
+        const finalMessage: Message = {
+          id,
+          role: "assistant",
+          content: reply.answer,
+          sources: reply.sources,
+        };
+        setMessages((current) =>
+          current.some((m) => m.id === id)
+            ? current.map((m) => (m.id === id ? finalMessage : m))
+            : [...current, finalMessage],
+        );
         setStatus("idle");
         if (voiceOnRef.current) void speak(toSpeakable(reply.answer));
       } catch (error) {
         if (controller.signal.aborted) return;
+        if (streamId !== null) {
+          // Drop the half-written reply; "Try again" asks the question afresh.
+          const partial = streamId;
+          setMessages((current) => current.filter((m) => m.id !== partial));
+        }
         failed.current = { question, prior };
         setErrorText(
           error instanceof ChatApiError
@@ -362,7 +410,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
   const submit = useCallback(
     (text: string) => {
       const question = text.trim();
-      if (!question || status === "loading") return;
+      if (!question || status === "loading" || status === "streaming") return;
       const userMessage: Message = {
         id: nextId.current++,
         role: "user",
@@ -470,7 +518,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
 
             {status === "loading" && (
               <div className="msg assistant typing" role="status">
-                <span className="sr-only">NAIS Assistant is typing</span>
+                <span className="typing-label">{loadingLabel}</span>
                 <span className="dot" aria-hidden="true" />
                 <span className="dot" aria-hidden="true" />
                 <span className="dot" aria-hidden="true" />
@@ -553,7 +601,7 @@ export function ChatWidget({ config }: { config: WidgetConfig }) {
             <button
               type="submit"
               className="send"
-              disabled={status === "loading" || !input.trim()}
+              disabled={status === "loading" || status === "streaming" || !input.trim()}
             >
               Send
             </button>

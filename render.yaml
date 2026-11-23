@@ -1,6 +1,7 @@
 # Which implementation runs is chosen in the Dockerfile (the CMD line).
-# Keep this file in sync: use the "IMPL 3" env vars below with CMD for impl 3,
-# or the "IMPL 1" block (commented out) with CMD for impl 1.
+# Keep this file in sync: the "IMPL 3 / 4" env vars below serve both impl 3 and
+# impl 4 (same agent and MCP settings), or use the "IMPL 1" block (commented
+# out) with CMD for impl 1.
 services:
   - type: web
     name: nais-chat-assistant
@@ -10,7 +11,7 @@ services:
     envVars:
       # Secrets: set these in the Render dashboard (sync: false = not stored in git).
 
-      # --- IMPL 3: Foundry agent + remote MCP (currently active) ---
+      # --- IMPL 3 / IMPL 4: Foundry agent + remote MCP (impl 4 currently active) ---
       # Entra ID service principal; DefaultAzureCredential reads these three.
       # It needs a role on the Foundry project that allows calling agents
       # (e.g. Azure AI User).
